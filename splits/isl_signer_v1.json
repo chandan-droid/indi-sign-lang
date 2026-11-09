@@ -1,0 +1,20 @@
+{
+  "train": [
+    "signer1_sample_001",
+    "signer1_sample_004",
+    "signer1_sample_007",
+    "signer1_sample_010"
+  ],
+  "dev": [
+    "signer2_sample_002",
+    "signer2_sample_005",
+    "signer2_sample_008",
+    "signer2_sample_011"
+  ],
+  "test": [
+    "signer3_sample_003",
+    "signer3_sample_006",
+    "signer3_sample_009",
+    "signer3_sample_012"
+  ]
+}

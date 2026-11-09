@@ -1,0 +1,21 @@
+frame_dir,label,split
+C:\My Projects\ganet\ganet_isl\frames\include\hello\clip_001,hello,train
+C:\My Projects\ganet\ganet_isl\frames\include\hello\clip_002,hello,train
+C:\My Projects\ganet\ganet_isl\frames\include\hello\clip_003,hello,val
+C:\My Projects\ganet\ganet_isl\frames\include\hello\clip_004,hello,test
+C:\My Projects\ganet\ganet_isl\frames\include\thank_you\clip_001,thank_you,train
+C:\My Projects\ganet\ganet_isl\frames\include\thank_you\clip_002,thank_you,train
+C:\My Projects\ganet\ganet_isl\frames\include\thank_you\clip_003,thank_you,val
+C:\My Projects\ganet\ganet_isl\frames\include\thank_you\clip_004,thank_you,test
+C:\My Projects\ganet\ganet_isl\frames\include\welcome\clip_001,welcome,train
+C:\My Projects\ganet\ganet_isl\frames\include\welcome\clip_002,welcome,train
+C:\My Projects\ganet\ganet_isl\frames\include\welcome\clip_003,welcome,val
+C:\My Projects\ganet\ganet_isl\frames\include\welcome\clip_004,welcome,test
+C:\My Projects\ganet\ganet_isl\frames\include\good_morning\clip_001,good_morning,train
+C:\My Projects\ganet\ganet_isl\frames\include\good_morning\clip_002,good_morning,train
+C:\My Projects\ganet\ganet_isl\frames\include\good_morning\clip_003,good_morning,val
+C:\My Projects\ganet\ganet_isl\frames\include\good_morning\clip_004,good_morning,test
+C:\My Projects\ganet\ganet_isl\frames\include\help\clip_001,help,train
+C:\My Projects\ganet\ganet_isl\frames\include\help\clip_002,help,train
+C:\My Projects\ganet\ganet_isl\frames\include\help\clip_003,help,val
+C:\My Projects\ganet\ganet_isl\frames\include\help\clip_004,help,test

@@ -1,0 +1,47 @@
+# Modified GANet Architecture for Continuous Sign Language Recognition
+# Pre-trained Stage 1 (from INCLUDE) + Temporal Masking + Mid-stage VAC + BiLSTM-tapped GLP
+seed: 3407
+work_dir: work_dir/isl_modified_ganet_s3407
+data:
+  manifest: data/isl_manifest.csv
+  splits: splits/isl_signer_v1.json
+  lowercase: true
+  max_frames: 160
+  flip_p: 0.0
+  temporal_scale: true
+  scale_range: [0.8, 1.2]
+  mask_p: 0.5                               # Temporal Masking: drop random chunks of consecutive frames
+  mask_max_drop: 0.25
+  mask_chunk: [4, 12]
+model:
+  gcmm: true
+  gam: true
+  glp: true
+  glp_tap: temporal                         # Tapped from Stage 2 BiLSTM (matches diagram)
+  vac: true                                 # Mid-stage VAC supervision
+  vac_tap: visual                           # Tapped directly from Stage 1 Visual Modeling (matches diagram)
+  attn: true
+  num_pool: 2
+  glp_bins: 12
+  imagenet: false
+  temporal_mix: true
+loss:
+  glp: 1.0                                  # lambda_GLP
+  vac: 1.0                                  # alpha * lambda_VAC
+  kd: 0.0
+pretrained:
+  path: work_dir/include_pretrain/include_visual.pt
+  transfer_gam: true                        # Transfer Stage 1 SMM + GCMM + GAM weights
+  freeze_epochs: 5                          # Warm up new temporal/auxiliary heads first
+train:
+  epochs: 60
+  batch_size: 2
+  lr: 1.0e-4
+  lr_visual: 3.0e-5                         # Lower learning rate for pre-trained visual stage
+  weight_decay: 1.0e-4
+  milestones: [30, 45]
+  gamma: 0.2
+  amp: true
+  beam: 10
+  num_workers: 4
+

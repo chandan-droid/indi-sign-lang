@@ -1,0 +1,31 @@
+# E2/E5: GANet-style + INCLUDE-pretrained Stage 1 (+ optional temporal masking and VAC)
+seed: 3407
+work_dir: work_dir/isl_ganet_inc_s3407
+data:
+  manifest: data/isl_manifest.csv
+  splits: splits/isl_signer_v1.json
+  lowercase: true
+  max_frames: 160
+  flip_p: 0.0
+  temporal_scale: true
+  scale_range: [0.8, 1.2]
+  mask_p: 0.0                             # set 0.5 for temporal masking (E3/E5)
+  mask_max_drop: 0.25
+  mask_chunk: [4, 12]
+model: {gcmm: true, gam: true, glp: true, vac: false, vac_tap: conv, attn: true, num_pool: 2, glp_bins: 12, imagenet: false, temporal_mix: true}
+loss: {glp: 1.0, vac: 0.0, kd: 0.0, kd_T: 8.0}   # set vac: 1.0 (and kd: 25.0 for full VAC) for E4/E5
+pretrained:
+  path: work_dir/include_pretrain/include_visual.pt
+  transfer_gam: true                      # compare against false to test whether GAM should be pre-trained
+  freeze_epochs: 5                        # warm up new heads with the visual stage frozen
+train:
+  epochs: 60
+  batch_size: 2
+  lr: 1.0e-4
+  lr_visual: 3.0e-5                       # lower lr for pre-trained weights
+  weight_decay: 1.0e-4
+  milestones: [30, 45]
+  gamma: 0.2
+  amp: true
+  beam: 10
+  num_workers: 4

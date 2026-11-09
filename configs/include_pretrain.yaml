@@ -1,0 +1,8 @@
+seed: 3407
+work_dir: work_dir/include_pretrain
+data:
+  manifest: data/include_manifest.csv     # frame_dir,label,split  (tools/make_include_manifest.py)
+  num_frames: 32                          # frames sampled per isolated sign
+  flip_p: 0.0                             # horizontal flip swaps the dominant hand: keep off here
+model: {gcmm: true, gam: true, imagenet: true, temporal_mix: true}
+train: {epochs: 40, batch_size: 8, lr: 1.0e-4, weight_decay: 1.0e-4, label_smoothing: 0.1, amp: true, num_workers: 4}

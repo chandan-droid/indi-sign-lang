@@ -46,7 +46,10 @@ def main():
     sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=t['epochs'])
     crit = nn.CrossEntropyLoss(label_smoothing=t.get('label_smoothing', 0.1))
     amp = t.get('amp', True) and device.type == 'cuda'
-    scaler = torch.cuda.amp.GradScaler(enabled=amp)
+    try:
+        scaler = torch.amp.GradScaler('cuda', enabled=amp)
+    except (AttributeError, TypeError):
+        scaler = torch.cuda.amp.GradScaler(enabled=amp)
     best, ckpt = -1.0, os.path.join(cfg['work_dir'], 'include_visual.pt')
 
     for ep in range(t['epochs']):

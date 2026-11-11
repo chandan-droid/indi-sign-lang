@@ -24,7 +24,12 @@ def main():
     os.makedirs(wd, exist_ok=True)
 
     rows = read_manifest(d['manifest'])
-    splits = json.load(open(d['splits']))
+    splits_path = d['splits']
+    if not os.path.exists(splits_path):
+        alt = 'data/isl_splits.json' if splits_path == 'splits/isl_signer_v1.json' else 'splits/isl_signer_v1.json'
+        if os.path.exists(alt):
+            splits_path = alt
+    splits = json.load(open(splits_path))
     vocab = build_vocab(rows, splits['train'], d.get('lowercase', True))
     vocab.save(os.path.join(wd, 'vocab.json'))
     print('vocab (incl. blank):', len(vocab), {k: len(v) for k, v in splits.items()})
@@ -48,7 +53,10 @@ def main():
                            weight_decay=t['weight_decay'])
     sched = torch.optim.lr_scheduler.MultiStepLR(opt, t['milestones'], t.get('gamma', 0.2))
     amp = t.get('amp', True) and device.type == 'cuda'
-    scaler = torch.cuda.amp.GradScaler(enabled=amp)
+    try:
+        scaler = torch.amp.GradScaler('cuda', enabled=amp)
+    except (AttributeError, TypeError):
+        scaler = torch.cuda.amp.GradScaler(enabled=amp)
     warm = (pre or {}).get('freeze_epochs', 0) if pre and pre.get('path') else 0
     best, best_path, log = 1e9, os.path.join(wd, 'best.pt'), []
 
@@ -61,7 +69,11 @@ def main():
         t0, agg, nb = time.time(), {}, 0
         for batch in ld['train']:
             video, vlen = batch['video'].to(device), batch['vlen'].to(device)
-            with torch.autocast('cuda', dtype=torch.float16, enabled=amp):
+            try:
+                autocast_ctx = torch.amp.autocast('cuda', dtype=torch.float16, enabled=amp)
+            except (AttributeError, TypeError):
+                autocast_ctx = torch.cuda.amp.autocast(enabled=amp)
+            with autocast_ctx:
                 out = model(video, vlen)
             loss, parts = total_loss(out, batch, w)
             opt.zero_grad(set_to_none=True)

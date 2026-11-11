@@ -76,3 +76,6 @@ never transferred (different label spaces).
 - The paper's learning-rate schedule (decay at epochs 10 and 20 of 100) looks unusual; configs default to 30/45 of 60. Tune on dev.
 - Grad-CAM and the hand-mask focus metric are not included yet.
 - Distillation (`loss.kd`) needs `vac_tap: conv`; with `vac_tap: visual` only the auxiliary CTC is used.
+
+
+![alt text](image.png)

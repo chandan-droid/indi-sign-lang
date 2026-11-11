@@ -157,12 +157,15 @@ def main():
     ap = argparse.ArgumentParser(description="Verify datasets and manifests for GANet ISL")
     ap.add_argument('--include_manifest', default="data/include_manifest.csv")
     ap.add_argument('--isl_manifest', default="data/isl_manifest.csv")
-    ap.add_argument('--splits', default="splits/isl_signer_v1.json")
-    ap.add_argument('--num_pool', type=int, default=2)
+    default_splits = "data/isl_splits.json" if os.path.exists("data/isl_splits.json") else "splits/isl_signer_v1.json"
+    ap.add_argument('--splits', default=default_splits)
+    ap.add_argument('--num_pool', type=int, default=1)
+    ap.add_argument('--skip_include', action='store_true', help="Skip INCLUDE check if already pre-trained")
     a = ap.parse_args()
 
-    inc_ok = verify_include(a.include_manifest)
-    print()
+    if not a.skip_include and os.path.exists(a.include_manifest):
+        inc_ok = verify_include(a.include_manifest)
+        print()
     isl_ok = verify_isl(a.isl_manifest, a.splits, a.num_pool)
 
 

@@ -39,7 +39,17 @@ class Vocab:
 
 
 def read_manifest(path):
-    return {r['id']: r for r in csv.DictReader(open(path))}
+    with open(path, 'r', encoding='utf-8-sig') as f:
+        reader = csv.DictReader(f)
+        # Strip any accidental whitespace from fieldnames
+        reader.fieldnames = [fn.strip() for fn in (reader.fieldnames or [])]
+        rows = {}
+        for r in reader:
+            row_clean = {k.strip(): v.strip() for k, v in r.items() if k is not None}
+            # Support 'id' or fallback to first column
+            row_id = row_clean.get('id') or list(row_clean.values())[0]
+            rows[row_id] = row_clean
+        return rows
 
 
 def build_vocab(rows, train_ids, lowercase=True):
@@ -66,6 +76,9 @@ class ContinuousSignDataset(Dataset):
         label = self.vocab.encode(toks)
         files = list_frames(r['frame_dir'])
         idx = np.arange(len(files))
+        min_needed = (len(label) + 1) * self.pool
+        if len(idx) < min_needed and len(files) > 0:
+            idx = np.round(np.linspace(0, len(files) - 1, min_needed)).astype(int)
         if self.train:
             if self.c.get('temporal_scale', True):
                 idx = temporal_rescale(idx, *self.c.get('scale_range', [0.8, 1.2]))
@@ -74,6 +87,8 @@ class ContinuousSignDataset(Dataset):
                 need = (len(label) + repeats + 1) * self.pool        # keep CTC feasible after masking
                 idx = temporal_mask(idx, self.c.get('mask_max_drop', 0.25),
                                     tuple(self.c.get('mask_chunk', [4, 12])), self.c['mask_p'], need)
+            if len(idx) < min_needed and len(files) > 0:
+                idx = np.round(np.linspace(0, len(files) - 1, min_needed)).astype(int)
         mx = self.c.get('max_frames', 160)
         if len(idx) > mx:
             idx = idx[np.linspace(0, len(idx) - 1, mx).round().astype(int)]

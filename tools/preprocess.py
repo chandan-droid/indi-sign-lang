@@ -113,9 +113,12 @@ def process_include(raw_dir="raw_data/INCLUDE", frames_dir="frames/include",
     # Extract label name: handles Category/SignName/clip or SignName/clip
     items = []
     for c in clips:
-        parent = os.path.basename(os.path.dirname(c))
+        c_norm = c.replace('\\', '/')
+        parent = os.path.basename(os.path.dirname(c_norm))
+        if parent.lower() in ('extra', 'supplementary', 'additional'):
+            parent = os.path.basename(os.path.dirname(os.path.dirname(c_norm)))
         label = clean_name(parent)
-        items.append((c, label))
+        items.append((c_norm, label))
 
     import random
     random.seed(seed)
@@ -203,9 +206,24 @@ def process_isl(raw_dir="raw_data/ISL-CSLTR",
     videos_dir = videos_dir or os.path.join(raw_dir, "videos")
     labels_file = labels_file or os.path.join(raw_dir, "labels.csv")
 
+    # Check if pre-extracted Frames_Sentence_Level directory exists (official Kaggle dataset structure)
+    from tools.make_isl_cslrt_manifest import find_sentence_frames_dir, generate_manifest_and_splits
+    sentence_frames = find_sentence_frames_dir(raw_dir)
+    if sentence_frames:
+        print(f"[*] Found pre-extracted Frames_Sentence_Level at: {sentence_frames}")
+        generate_manifest_and_splits(
+            sentence_frames,
+            manifest_out=manifest_out,
+            splits_out="data/isl_splits.json",
+            compat_splits=splits_out,
+            dev_signers=("signer6",),
+            test_signers=("signer7",)
+        )
+        return True
+
     if not os.path.isdir(videos_dir):
         print(f"[!] Videos directory not found: {videos_dir}")
-        print("    Please place video clips into raw_data/ISL-CSLTR/videos/")
+        print("    Please place video clips into raw_data/ISL-CSLTR/videos/ or frames in Frames_Sentence_Level")
         return False
     if not os.path.isfile(labels_file):
         print(f"[!] Labels CSV not found: {labels_file}")
@@ -242,7 +260,7 @@ def process_isl(raw_dir="raw_data/ISL-CSLTR",
                 m = re.search(r'^(signer\d+|s\d+)', vid, re.IGNORECASE)
                 signer = m.group(1).lower() if m else 'signer1'
             text = r[text_col].strip()
-            out_rows.append(dict(id=vid, frame_dir=fd, signer=signer, text=text))
+            out_rows.append(dict(id=vid, frame_dir=fd.replace('\\', '/'), signer=signer, text=text))
 
     os.makedirs(os.path.dirname(manifest_out) or '.', exist_ok=True)
     with open(manifest_out, 'w', newline='', encoding='utf-8') as f:

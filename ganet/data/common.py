@@ -7,7 +7,22 @@ MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
 STD = np.array([0.229, 0.224, 0.225], dtype=np.float32)
 
 
+def normalize_path(p):
+    """Normalize Windows/Linux paths to work cross-platform."""
+    if not p:
+        return p
+    p_norm = p.replace('\\', '/')
+    if os.path.exists(p_norm):
+        return p_norm
+    # If absolute path from another machine (e.g. C:/.../frames/...), resolve to local frames/
+    idx = p_norm.find('frames/')
+    if idx != -1 and os.path.exists(p_norm[idx:]):
+        return p_norm[idx:]
+    return p_norm
+
+
 def list_frames(d):
+    d = normalize_path(d)
     files = sorted(glob.glob(os.path.join(d, '*.jpg')) + glob.glob(os.path.join(d, '*.png')))
     if not files:
         raise FileNotFoundError(f'no frames in {d}')

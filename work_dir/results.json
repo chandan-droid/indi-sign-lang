@@ -1,0 +1,5 @@
+{
+ "best_val_acc": 0.9694656488549618,
+ "checkpoint": "work_dir/include_pretrain/include_visual.pt",
+ "test_acc": 0.9698412698412698
+}

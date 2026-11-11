@@ -14,13 +14,17 @@ def main():
     ap.add_argument('--ckpt', required=True)
     ap.add_argument('--split', default='test')
     ap.add_argument('--beam', type=int, default=10)
+    ap.add_argument('--manifest', default=None)
+    ap.add_argument('--splits', default=None)
     ap.add_argument('--out', default=None)
     a = ap.parse_args()
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     ck = torch.load(a.ckpt, map_location='cpu')
     cfg, vocab = ck['cfg'], Vocab(ck['vocab'])
     d, m = cfg['data'], cfg['model']
-    rows, splits = read_manifest(d['manifest']), json.load(open(d['splits']))
+    manifest_file = a.manifest or d['manifest']
+    splits_file = a.splits or d['splits']
+    rows, splits = read_manifest(manifest_file), json.load(open(splits_file))
     ds = ContinuousSignDataset(rows, splits[a.split], vocab, False, d, m.get('num_pool', 2), m.get('glp_bins', 12))
     loader = DataLoader(ds, batch_size=1, collate_fn=collate_continuous, num_workers=2)
     model = build_model(m, len(vocab)).to(device)

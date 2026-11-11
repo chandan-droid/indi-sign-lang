@@ -7,41 +7,41 @@ data:
   splits: splits/isl_signer_v1.json
   lowercase: true
   max_frames: 160
-  flip_p: 0.0
+  flip_p: 0.5
   temporal_scale: true
   scale_range: [0.8, 1.2]
-  mask_p: 0.5                               # Temporal Masking: drop random chunks of consecutive frames
-  mask_max_drop: 0.25
-  mask_chunk: [4, 12]
+  mask_p: 0.25                              # Gentle temporal masking so whole signs aren't erased
+  mask_max_drop: 0.15
+  mask_chunk: [2, 5]                        # 2 to 5 frames per masked chunk
 model:
   gcmm: true
   gam: true
   glp: true
-  glp_tap: temporal                         # Tapped from Stage 2 BiLSTM (matches diagram)
-  vac: true                                 # Mid-stage VAC supervision
-  vac_tap: visual                           # Tapped directly from Stage 1 Visual Modeling (matches diagram)
+  glp_tap: temporal
+  vac: true
+  vac_tap: visual
   attn: true
-  num_pool: 2
+  num_pool: 1                               # 2x temporal pooling (2^1=2x) for ~26-frame ISL sentences (3.1 steps/sign)
   glp_bins: 12
-  imagenet: false
+  imagenet: true                            # Fallback initialization for non-SMM layers
   temporal_mix: true
 loss:
-  glp: 1.0                                  # lambda_GLP
-  vac: 1.0                                  # alpha * lambda_VAC
-  kd: 0.0
+  glp: 0.5                                  # Balanced global length constraint
+  vac: 0.1                                  # Scaled mid-stage CTC loss
+  kd: 0.5                                   # Stage-2 to Stage-1 KL self-distillation alignment
 pretrained:
   path: work_dir/include_pretrain/include_visual.pt
-  transfer_gam: true                        # Transfer Stage 1 SMM + GCMM + GAM weights
-  freeze_epochs: 5                          # Warm up new temporal/auxiliary heads first
+  transfer_gam: false                       # Transfer SMM handshapes only; let GAM learn sentence context!
+  freeze_epochs: 2                          # Brief warmup before joint end-to-end tuning
 train:
-  epochs: 60
-  batch_size: 2
+  epochs: 40
+  batch_size: 2                             # Matches original paper & prevents T4 CUDA OOM
   lr: 1.0e-4
-  lr_visual: 3.0e-5                         # Lower learning rate for pre-trained visual stage
+  lr_visual: 5.0e-5                         # Allows Stage 1 + GAM to adapt to continuous sentences
   weight_decay: 1.0e-4
-  milestones: [30, 45]
+  milestones: [20, 30]                      # Gives newly initialized GAM/GCMM 20 full epochs before decay
   gamma: 0.2
   amp: true
   beam: 10
-  num_workers: 4
+  num_workers: 2
 

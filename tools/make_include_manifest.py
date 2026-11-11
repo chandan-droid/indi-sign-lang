@@ -20,7 +20,12 @@ def main():
     ap.add_argument('--seed', type=int, default=3407)
     a = ap.parse_args()
     clips = sorted({os.path.dirname(f) for f in glob.glob(os.path.join(a.frames, '**', '*.jpg'), recursive=True)})
-    items = [(c, clean(os.path.basename(os.path.dirname(c)))) for c in clips]
+    items = []
+    for c in clips:
+        parent = os.path.basename(os.path.dirname(c))
+        if parent.lower() in ('extra', 'supplementary', 'additional'):
+            parent = os.path.basename(os.path.dirname(os.path.dirname(c)))
+        items.append((c, clean(parent)))
     random.seed(a.seed)
     train_names = set(open(a.train_list).read().split()) if a.train_list else None
     test_names = set(open(a.test_list).read().split()) if a.test_list else None

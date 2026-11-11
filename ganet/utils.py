@@ -35,13 +35,24 @@ def load_pretrained_visual(visual, path, transfer_gam=True, verbose=True):
 
     Only keys that exist in the target with identical shape are loaded; GAM keys can be excluded.
     Prints what was loaded and skipped so silent mismatches are visible."""
+    if not os.path.exists(path):
+        candidates = [
+            'work_dir/include_visual.pt',
+            'work_dir/include_pretrain/include_visual.pt',
+            os.path.basename(path),
+            os.path.join('work_dir', os.path.basename(path))
+        ]
+        for c in candidates:
+            if os.path.exists(c):
+                path = c
+                break
     ck = torch.load(path, map_location='cpu')
     sd = ck['visual'] if 'visual' in ck else ck
     own = visual.state_dict()
     loaded, skipped = {}, []
     for k, v in sd.items():
-        if not transfer_gam and k.startswith('gams.'):
-            skipped.append((k, 'gam excluded'))
+        if not transfer_gam and (k.startswith('gams.') or k.startswith('gcmm.')):
+            skipped.append((k, 'gam/gcmm excluded (learning continuous context)'))
         elif k in own and own[k].shape == v.shape:
             loaded[k] = v
         else:

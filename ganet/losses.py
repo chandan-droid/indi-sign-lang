@@ -7,7 +7,8 @@ from .models.heads import length_mask
 def ctc_loss(logits, in_len, targets, tgt_len):
     """logits [B, T, V]; targets: 1-D concatenated label ids (blank = 0 is never a target)."""
     lp = logits.float().log_softmax(-1).transpose(0, 1)             # CTC in float32
-    return F.ctc_loss(lp, targets.cpu().int(), in_len.cpu().int(), tgt_len.cpu().int(),
+    dev = lp.device
+    return F.ctc_loss(lp, targets.to(dev).int(), in_len.to(dev).int(), tgt_len.to(dev).int(),
                       blank=0, reduction='mean', zero_infinity=True)
 
 
@@ -31,7 +32,12 @@ def total_loss(out, batch, w):
     if 'vac_logits' in out and w.get('vac', 0) > 0:
         parts['vac'] = ctc_loss(out['vac_logits'], out['vac_len'], batch['labels'], batch['label_len'])
         loss = loss + w['vac'] * parts['vac']
-        if w.get('kd', 0) > 0 and out['vac_logits'].size(1) == out['seq_logits'].size(1):
-            parts['kd'] = seq_kd(out['vac_logits'], out['seq_logits'], out['out_len'], w.get('kd_T', 8.0))
+        if w.get('kd', 0) > 0:
+            vac_s = out['vac_logits']
+            tgt_L = out['seq_logits'].size(1)
+            if vac_s.size(1) != tgt_L:
+                # Align student (visual) time dimension to teacher (BiLSTM) length
+                vac_s = F.adaptive_avg_pool1d(vac_s.transpose(1, 2), tgt_L).transpose(1, 2)
+            parts['kd'] = seq_kd(vac_s, out['seq_logits'], out['out_len'], w.get('kd_T', 8.0))
             loss = loss + w['kd'] * parts['kd']
     return loss, {k: float(v.detach()) for k, v in parts.items()}

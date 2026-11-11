@@ -1,13 +1,13 @@
 id,frame_dir,signer,text
-signer1_sample_001,C:\My Projects\ganet\ganet_isl\frames\isl\signer1_sample_001,signer1,hello how are you
-signer2_sample_002,C:\My Projects\ganet\ganet_isl\frames\isl\signer2_sample_002,signer2,good morning welcome
-signer3_sample_003,C:\My Projects\ganet\ganet_isl\frames\isl\signer3_sample_003,signer3,thank you very much
-signer1_sample_004,C:\My Projects\ganet\ganet_isl\frames\isl\signer1_sample_004,signer1,i need your help
-signer2_sample_005,C:\My Projects\ganet\ganet_isl\frames\isl\signer2_sample_005,signer2,where is the hospital
-signer3_sample_006,C:\My Projects\ganet\ganet_isl\frames\isl\signer3_sample_006,signer3,what is your name
-signer1_sample_007,C:\My Projects\ganet\ganet_isl\frames\isl\signer1_sample_007,signer1,nice to meet you
-signer2_sample_008,C:\My Projects\ganet\ganet_isl\frames\isl\signer2_sample_008,signer2,please can you help me
-signer3_sample_009,C:\My Projects\ganet\ganet_isl\frames\isl\signer3_sample_009,signer3,see you tomorrow again
-signer1_sample_010,C:\My Projects\ganet\ganet_isl\frames\isl\signer1_sample_010,signer1,i am learning sign language
-signer2_sample_011,C:\My Projects\ganet\ganet_isl\frames\isl\signer2_sample_011,signer2,today weather is good
-signer3_sample_012,C:\My Projects\ganet\ganet_isl\frames\isl\signer3_sample_012,signer3,take care of yourself
+signer1_sample_001,frames/isl/signer1_sample_001,signer1,hello how are you
+signer2_sample_002,frames/isl/signer2_sample_002,signer2,good morning welcome
+signer3_sample_003,frames/isl/signer3_sample_003,signer3,thank you very much
+signer1_sample_004,frames/isl/signer1_sample_004,signer1,i need your help
+signer2_sample_005,frames/isl/signer2_sample_005,signer2,where is the hospital
+signer3_sample_006,frames/isl/signer3_sample_006,signer3,what is your name
+signer1_sample_007,frames/isl/signer1_sample_007,signer1,nice to meet you
+signer2_sample_008,frames/isl/signer2_sample_008,signer2,please can you help me
+signer3_sample_009,frames/isl/signer3_sample_009,signer3,see you tomorrow again
+signer1_sample_010,frames/isl/signer1_sample_010,signer1,i am learning sign language
+signer2_sample_011,frames/isl/signer2_sample_011,signer2,today weather is good
+signer3_sample_012,frames/isl/signer3_sample_012,signer3,take care of yourself

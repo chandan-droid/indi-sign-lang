@@ -1,0 +1,50 @@
+seed: 3407
+work_dir: work_dir/phoenix_ganet_baseline
+
+data:
+  manifest: data/phoenix_manifest.csv
+  splits: data/phoenix_splits.json
+  lowercase: false        # PHOENIX glosses are uppercase German
+  max_frames: 250         # PHOENIX sentences are long (up to ~200-250 frames)
+  flip_p: 0.5
+  temporal_scale: true
+  scale_range: [0.8, 1.2]
+  mask_p: 0.25            # PHOENIX sentences are long enough for temporal masking
+  mask_max_drop: 0.20
+  mask_chunk: [4, 10]
+
+model:
+  gcmm: true
+  gam: true
+  glp: true
+  glp_tap: visual         # Baseline GANet: visual tap (Modified uses temporal)
+  vac: false              # Baseline: false (Modified uses true)
+  vac_tap: visual
+  attn: true
+  num_pool: 2             # PHOENIX has long clips -> 4x downsampling matches paper exactly!
+  glp_bins: 12
+  imagenet: true
+  temporal_mix: true
+
+loss:
+  glp: 1.0
+  vac: 0.0
+  kd: 0.0
+
+pretrained:
+  path: ""                # PHOENIX trains from ImageNet or scratch
+  transfer_gam: false
+  freeze_epochs: 0
+
+train:
+  epochs: 45
+  batch_size: 2
+  lr: 1.0e-4
+  lr_visual: 5.0e-5
+  weight_decay: 1.0e-4
+  milestones: [20, 35]
+  gamma: 0.5
+  amp: true
+  beam: 10
+  num_workers: 2
+

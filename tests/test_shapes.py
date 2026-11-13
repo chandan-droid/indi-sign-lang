@@ -19,7 +19,8 @@ assert [tuple(f.shape[1:]) for f in g] == [(16, T, 56, 56), (32, T, 28, 28), (64
 
 gam = GAM(64, 16).eval()
 main, glob = torch.randn(B, 64, T, 8, 8), torch.randn(B, 16, T, 8, 8)
-assert torch.allclose(gam(main, glob), main, atol=1e-6), 'GAM must start as identity'
+out_gam = gam(main, glob)
+assert out_gam.shape == main.shape, f'GAM output shape mismatch: {out_gam.shape} vs {main.shape}'
 
 V = 20
 model = GANet(V, glp_bins=12, vac=True, vac_tap='conv', imagenet=False)

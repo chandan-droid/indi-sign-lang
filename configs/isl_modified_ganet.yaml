@@ -21,7 +21,7 @@ model:
   vac: true
   vac_tap: visual
   attn: true
-  num_pool: 1                               # 2x temporal pooling (2^1=2x) for ~26-frame ISL sentences (3.1 steps/sign)
+  num_pool: 0                               # No pooling (1x) for ~26-frame ISL sentences (6.2 steps/sign)
   glp_bins: 12
   imagenet: true                            # Fallback initialization for non-SMM layers
   temporal_mix: true
@@ -40,7 +40,7 @@ train:
   lr_visual: 5.0e-5                         # Allows Stage 1 + GAM to adapt to continuous sentences
   weight_decay: 1.0e-4
   milestones: [20, 30]                      # Gives newly initialized GAM/GCMM 20 full epochs before decay
-  gamma: 0.2
+  gamma: 0.5                                # Gentle 2x step decay instead of aggressive 5x (prevents late relapse)
   amp: true
   beam: 10
   num_workers: 2

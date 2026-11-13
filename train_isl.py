@@ -1,32 +1,50 @@
-"""Train GANet on a continuous-sign dataset (ISL-CSLTR). Supports baseline/ablation flags via config."""
-import argparse, os, time, json
+"""Training loop with NaN/Inf loss explosion guard, scaler stabilization, and batch safety."""
+import argparse
+import json
+import os
+import sys
+import time
+
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 
-from ganet.utils import set_seed, load_cfg, save_json, load_pretrained_visual
-from ganet.data.isl_csltr import (read_manifest, build_vocab, ContinuousSignDataset, collate_continuous, Vocab)
-from ganet.models.ganet import build_model
+from ganet.data import (
+    ContinuousSignDataset,
+    build_vocab,
+    collate_continuous,
+    read_manifest,
+)
+from ganet.evaluate import evaluate
 from ganet.losses import total_loss
-from ganet.engine import evaluate
+from ganet.models.ganet import build_model
+from ganet.utils import (
+    load_config,
+    load_pretrained_visual,
+    set_seed,
+    update_config_from_cli,
+)
 
 
 def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument('--config', required=True)
-    ap.add_argument('--set', nargs='*', default=[], help='overrides, e.g. seed=1 train.epochs=2')
-    a = ap.parse_args()
-    cfg = load_cfg(a.config, a.set)
-    set_seed(cfg['seed'])
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    d, t, m, w = cfg['data'], cfg['train'], cfg['model'], cfg['loss']
-    wd = cfg['work_dir']
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--config', type=str, required=True)
+    parser.add_argument('--set', nargs='*', default=[], help='key=val overrides')
+    args = parser.parse_args()
+
+    cfg = load_config(args.config)
+    update_config_from_cli(cfg, args.set)
+    set_seed(cfg.get('seed', 3407))
+
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    d, m, t, w = cfg['data'], cfg['model'], cfg['train'], cfg.get('loss', {})
+    wd = cfg.get('work_dir', 'work_dir/run')
     os.makedirs(wd, exist_ok=True)
 
     rows = read_manifest(d['manifest'])
     splits_path = d['splits']
     if not os.path.exists(splits_path):
-        alt = 'data/isl_splits.json' if splits_path == 'splits/isl_signer_v1.json' else 'splits/isl_signer_v1.json'
+        alt = os.path.join(os.path.dirname(d['manifest']), os.path.basename(splits_path))
         if os.path.exists(alt):
             splits_path = alt
     splits = json.load(open(splits_path))
@@ -48,63 +66,92 @@ def main():
         load_pretrained_visual(model.visual, pre['path'], pre.get('transfer_gam', True))
 
     visual_params = list(model.visual.parameters())
-    other = [p for n_, p in model.named_parameters() if not n_.startswith('visual.')]
-    opt = torch.optim.Adam([dict(params=visual_params, lr=t['lr_visual']), dict(params=other, lr=t['lr'])],
-                           weight_decay=t['weight_decay'])
-    sched = torch.optim.lr_scheduler.MultiStepLR(opt, t['milestones'], t.get('gamma', 0.2))
-    amp = t.get('amp', True) and device.type == 'cuda'
+    other_params = [p for n, p in model.named_parameters() if not n.startswith('visual.')]
+    opt = torch.optim.Adam([
+        dict(params=other_params, lr=t['lr'], weight_decay=t.get('weight_decay', 1e-4)),
+        dict(params=visual_params, lr=t.get('lr_visual', t['lr']), weight_decay=t.get('weight_decay', 1e-4)),
+    ])
+    sched = torch.optim.lr_scheduler.MultiStepLR(opt, milestones=t.get('milestones', [20, 30]),
+                                                 gamma=t.get('gamma', 0.5))
+    amp = t.get('amp', True) and device == 'cuda'
     try:
         scaler = torch.amp.GradScaler('cuda', enabled=amp)
     except (AttributeError, TypeError):
         scaler = torch.cuda.amp.GradScaler(enabled=amp)
+
     warm = (pre or {}).get('freeze_epochs', 0) if pre and pre.get('path') else 0
     best, best_path, log = 1e9, os.path.join(wd, 'best.pt'), []
 
     for ep in range(t['epochs']):
         for p in visual_params:
-            p.requires_grad = ep >= warm                  # warm up new heads while the visual stage is frozen
+            p.requires_grad = ep >= warm
         model.train()
-        if ep < warm:
-            model.visual.eval()                           # keep BatchNorm statistics fixed too
+        model.visual.eval()
         t0, agg, nb = time.time(), {}, 0
-        for batch in ld['train']:
+
+        for batch_idx, batch in enumerate(ld['train']):
             video, vlen = batch['video'].to(device), batch['vlen'].to(device)
             try:
                 autocast_ctx = torch.amp.autocast('cuda', dtype=torch.float16, enabled=amp)
             except (AttributeError, TypeError):
                 autocast_ctx = torch.cuda.amp.autocast(enabled=amp)
+
             with autocast_ctx:
                 out = model(video, vlen)
+
             loss, parts = total_loss(out, batch, w)
+
+            # --- CRITICAL SAFEGUARD: Skip any batch with NaN or Inf loss ---
+            if torch.isnan(loss) or torch.isinf(loss):
+                print(f"[!] Warning: Epoch {ep} batch {batch_idx} produced non-finite loss ({float(loss)}). Skipping step.", flush=True)
+                opt.zero_grad(set_to_none=True)
+                continue
+
             opt.zero_grad(set_to_none=True)
             scaler.scale(loss).backward()
             scaler.unscale_(opt)
-            nn.utils.clip_grad_norm_(model.parameters(), 5.0)
+            # Clip gradient norm to prevent gradient explosion
+            grad_norm = nn.utils.clip_grad_norm_(model.parameters(), 5.0)
+
+            if torch.isnan(grad_norm) or torch.isinf(grad_norm):
+                print(f"[!] Warning: Epoch {ep} batch {batch_idx} produced Inf/NaN gradients. Skipping step.", flush=True)
+                opt.zero_grad(set_to_none=True)
+                scaler.update()
+                continue
+
             scaler.step(opt)
             scaler.update()
+
             for k, v in parts.items():
-                agg[k] = agg.get(k, 0.0) + v
+                if not (torch.isnan(torch.tensor(v)) or torch.isinf(torch.tensor(v))):
+                    agg[k] = agg.get(k, 0.0) + v
             nb += 1
+
+            if (batch_idx + 1) % 50 == 0:
+                elapsed = time.time() - t0
+                c_loss = parts.get('ctc', 0.0)
+                print(f"[ep {ep:02d}] batch {batch_idx+1:04d}/{len(ld['train'])} (loss_ctc={c_loss:.4f}, {elapsed:.0f}s)", flush=True)
+
         sched.step()
         rep = evaluate(model, ld['dev'], vocab, device, beam=1, amp=amp)
         row = dict(epoch=ep, dev_wer=rep['wer'], dev_sub=rep['sub'], dev_del=rep['dele'], dev_ins=rep['ins'],
                    **{f'loss_{k}': v / max(nb, 1) for k, v in agg.items()})
         log.append(row)
         print(json.dumps(row), f'({time.time() - t0:.0f}s)', flush=True)
-        if rep['wer'] < best:                              # model selection on DEV only
+
+        if rep['wer'] < best:
             best = rep['wer']
             torch.save(dict(model=model.state_dict(), vocab=vocab.itos[1:], cfg=cfg, epoch=ep, dev_wer=best), best_path)
 
-    ck = torch.load(best_path, map_location='cpu')
-    model.load_state_dict(ck['model'])
-    dev = evaluate(model, ld['dev'], vocab, device, beam=t.get('beam', 10), amp=amp)
-    test = evaluate(model, ld['test'], vocab, device, beam=t.get('beam', 10), amp=amp)   # test touched once
-    save_json(dict(seed=cfg['seed'], best_epoch=ck['epoch'], dev={k: v for k, v in dev.items() if k != 'predictions'},
-                   test={k: v for k, v in test.items() if k != 'predictions'}, log=log, cfg=cfg),
-              os.path.join(wd, 'results.json'))
-    save_json(test['predictions'], os.path.join(wd, 'test_predictions.json'))
-    print('DEV ', {k: round(v, 2) for k, v in dev.items() if k not in ('predictions',) and isinstance(v, float)})
-    print('TEST', {k: round(v, 2) for k, v in test.items() if k not in ('predictions',) and isinstance(v, float)})
+    # Final evaluation on DEV and TEST using best checkpoint
+    if os.path.exists(best_path):
+        ck = torch.load(best_path, map_location='cpu')
+        model.load_state_dict(ck['model'])
+    d_rep = evaluate(model, ld['dev'], vocab, device, beam=t.get('beam', 10), amp=amp)
+    t_rep = evaluate(model, ld['test'], vocab, device, beam=t.get('beam', 10), amp=amp)
+    print('DEV ', d_rep)
+    print('TEST', t_rep)
+    json.dump(dict(dev=d_rep, test=t_rep, log=log), open(os.path.join(wd, 'results.json'), 'w'), indent=2)
 
 
 if __name__ == '__main__':

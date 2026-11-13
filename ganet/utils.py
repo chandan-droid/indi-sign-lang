@@ -13,9 +13,11 @@ def set_seed(seed):
     torch.backends.cudnn.benchmark = False
 
 
-def load_cfg(path, overrides=None):
-    cfg = yaml.safe_load(open(path))
-    for item in overrides or []:                                   # e.g. --set train.epochs=2
+def update_config_from_cli(cfg, overrides=None):
+    """Applies a list of 'key.subkey=value' overrides to a config dictionary."""
+    for item in overrides or []:
+        if '=' not in item:
+            continue
         key, val = item.split('=', 1)
         node = cfg
         parts = key.split('.')
@@ -25,9 +27,22 @@ def load_cfg(path, overrides=None):
     return cfg
 
 
+def load_config(path, overrides=None):
+    """Loads a YAML config file and optionally applies overrides."""
+    with open(path, 'r', encoding='utf-8') as f:
+        cfg = yaml.safe_load(f)
+    if overrides:
+        update_config_from_cli(cfg, overrides)
+    return cfg
+
+
+# Alias for backwards compatibility
+load_cfg = load_config
+
+
 def save_json(obj, path):
     os.makedirs(os.path.dirname(path) or '.', exist_ok=True)
-    json.dump(obj, open(path, 'w'), indent=1, ensure_ascii=False)
+    json.dump(obj, open(path, 'w', encoding='utf-8'), indent=1, ensure_ascii=False)
 
 
 def load_pretrained_visual(visual, path, transfer_gam=True, verbose=True):
@@ -55,6 +70,37 @@ def load_pretrained_visual(visual, path, transfer_gam=True, verbose=True):
             skipped.append((k, 'gam/gcmm excluded (learning continuous context)'))
         elif k in own and own[k].shape == v.shape:
             loaded[k] = v
+        elif transfer_gam:
+            # Smart adapter for legacy GAM checkpoints (e.g. from older include_visual.pt)
+            mapped = False
+            if '.cluster.w' in k:
+                k_tw, k_sw = k.replace('.cluster.w', '.cluster.t_w'), k.replace('.cluster.w', '.cluster.s_w')
+                if k_tw in own and own[k_tw].shape == v.shape: loaded[k_tw] = v; mapped = True
+                if k_sw in own and own[k_sw].shape == v.shape: loaded[k_sw] = v; mapped = True
+            elif '.cluster.branches.' in k:
+                if k.endswith('.0.weight') and v.dim() == 5:
+                    k_t = k.replace('.cluster.branches.', '.cluster.t_branches.')
+                    if k_t in own and own[k_t].shape == (v.shape[0], 1, v.shape[2]):
+                        loaded[k_t] = torch.stack([v[i, i, :, 0, 0] for i in range(v.shape[0])]).unsqueeze(1)
+                        mapped = True
+                elif '.1.' in k:
+                    k_t = k.replace('.cluster.branches.', '.cluster.t_branches.')
+                    if k_t in own and own[k_t].shape == v.shape:
+                        loaded[k_t] = v
+                        mapped = True
+            elif '.out.0.weight' in k:
+                k_cb = k.replace('.out.0.weight', '.conv_block.0.weight')
+                if k_cb in own and own[k_cb].shape == v.shape:
+                    loaded[k_cb] = v
+                    mapped = True
+            elif '.out.1.' in k:
+                k_cb = k.replace('.out.1.', '.conv_block.1.')
+                if k_cb in own and own[k_cb].shape == v.shape:
+                    loaded[k_cb] = v
+                    mapped = True
+
+            if not mapped:
+                skipped.append((k, 'missing or shape mismatch'))
         else:
             skipped.append((k, 'missing or shape mismatch'))
     visual.load_state_dict(loaded, strict=False)
